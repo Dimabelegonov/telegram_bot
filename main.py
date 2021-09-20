@@ -50,7 +50,7 @@ async def main():
 
 if __name__ == "__main__":
     # Парсинг файла конфигурации
-    config = load_config("config/bot.ini")
+    config = load_config("config/release_config.ini")
 
     # загрузка базы данных
     db_session.global_init(config.tg_bot.db)

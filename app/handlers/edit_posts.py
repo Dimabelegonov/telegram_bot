@@ -293,8 +293,15 @@ async def save_post(message: types.Message, state: FSMContext):
     db_sess.close()
 
 
+async def get_manual(message: types.Message, state: FSMContext):
+    manual = open("data/images/manual.png", "rb")
+    await message.answer_photo(manual, reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("Для перехода к началу используйте команду /admin")
+
+
 def register_handlers_edit_posts(dp: Dispatcher):
     dp.register_message_handler(start_edit, IDFilter(user_id=get_admins()), Text(equals="Редактировать сообщения"), state="*")
+    dp.register_message_handler(get_manual, IDFilter(user_id=get_admins()), Text(equals="Получить инструкцию"), state="*")
     dp.register_message_handler(add_post, IDFilter(user_id=get_admins()), Text(equals="Добавить пост"), state=EditPosts.wait_for_choose_act)
     dp.register_message_handler(choose_delete_post, IDFilter(user_id=get_admins()), Text(equals="Удалить пост"), state=EditPosts.wait_for_choose_act)
     dp.register_message_handler(delete_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_choose_post_delete)

@@ -54,7 +54,8 @@ async def admin_start(message: types.Message, state: FSMContext):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     buttons = [
         types.KeyboardButton(text="Сделать рассылку", ),
-        types.KeyboardButton(text="Редактировать сообщения")
+        types.KeyboardButton(text="Редактировать сообщения"),
+        types.KeyboardButton(text="Получить инструкцию")
     ]
 
     keyboard.add(*buttons)
