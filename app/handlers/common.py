@@ -21,24 +21,24 @@ async def cmd_start(message: types.Message, state: FSMContext):
         db_sess.add(user)
         db_sess.commit()
 
-        # отправка первого сообщения пользователю
-        db_sess = db_session.create_session()
-        post = db_sess.query(Posts).filter(Posts.first_post == True).first()
+    # отправка первого сообщения пользователю
+    db_sess = db_session.create_session()
+    post = db_sess.query(Posts).filter(Posts.first_post == True).first()
 
-        atts = [x.att_telegram_id for x in post.attachments]
+    atts = [x.att_telegram_id for x in post.attachments]
 
-        await message.answer(post.post_text, reply_markup=types.ReplyKeyboardRemove())
+    await message.answer(post.post_text, reply_markup=types.ReplyKeyboardRemove())
 
-        for att in atts:
-            try:
-                await message.answer_photo(att)
-            except Exception:
-                pass
+    for att in atts:
+        try:
+            await message.answer_photo(att)
+        except Exception:
+            pass
 
-            try:
-                await message.answer_document(att)
-            except Exception:
-                pass
+        try:
+            await message.answer_document(att)
+        except Exception:
+            pass
 
     if str(user.telegram_id) in get_admins():
         await message.answer("Вы являетесь администратором бота\nДля перехода в админку введите /admin", reply_markup=types.ReplyKeyboardRemove())
