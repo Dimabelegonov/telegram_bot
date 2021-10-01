@@ -22,17 +22,18 @@ class Posts(SqlAlchemyBase):
     post_id = Column(Integer, primary_key=True, autoincrement=True)
     post_name = Column(String)
     post_text = Column(Text)
-    first_post = Column(Boolean, default=False)
+    post_link = Column(String)
+    label_link = Column(String)
+    first_post = Column(Boolean)
     attachments = relationship("Attachments", backref="post", cascade = "all, delete, delete-orphan" )
 
-    def __init__(self, p_name, p_text, f_post, p_id=None) -> SqlAlchemyBase:
+    def __init__(self, p_name, p_text, p_link, lb_link, f_post) -> SqlAlchemyBase:
         super().__init__()
         self.post_name = p_name
         self.post_text = p_text
         self.first_post = f_post
-
-        if p_id and p_id.__class__ == int:
-            self.post_id = p_id
+        self.post_link = p_link
+        self.label_link = lb_link
 
 class Attachments(SqlAlchemyBase):
     __tablename__ = "attachments"

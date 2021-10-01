@@ -17,6 +17,8 @@ class EditPosts(StatesGroup):
     wait_for_text = State()
     wait_for_photo = State()
     wait_for_docs = State()
+    wait_for_link = State()
+    wait_for_label_link = State()
     wait_for_first = State()
 
 
@@ -144,7 +146,12 @@ async def view_post(message: types.Message, state: FSMContext):
 
         atts = [x.att_telegram_id for x in post.attachments]
 
-        await message.answer(post.post_text)
+        if post.post_link != "":
+            keyboard = types.InlineKeyboardMarkup(row_width=1)
+            button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
+            keyboard.add(button)
+
+        await message.answer(post.post_text, reply_markup=keyboard)
 
         for att in atts:
             try:
@@ -165,10 +172,10 @@ async def view_post(message: types.Message, state: FSMContext):
 
 
 async def save_post_name(message: types.Message, state: FSMContext):
-    if message.text == "" or message.text.strip() == "":
+    if message.text.strip() == "":
         await message.answer("Название не должно являться пустой строкой!")
         return
-    await state.update_data(post_name=message.text)
+    await state.update_data(post_name=message.text.strip())
 
     await message.answer("Введите текст поста:", reply_markup=types.ReplyKeyboardRemove())
     await EditPosts.wait_for_text.set()
@@ -178,7 +185,7 @@ async def save_post_text(message: types.Message, state: FSMContext):
     if message.text.strip() == "":
         await message.answer("Введите текст поста:", reply_markup=types.ReplyKeyboardRemove())
         return
-    await state.update_data(post_text=message.text)
+    await state.update_data(post_text=message.text.strip())
 
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add("Не загружать фото")
@@ -218,9 +225,9 @@ async def save_post_photo(message: types.Message, state: FSMContext):
 async def save_post_docs(message: types.Message, state: FSMContext):
     if message.text and message.text.strip().lower() == "Не загружать документ".lower() or message.text and message.text.strip().lower() == "Не добавлять документ".lower():
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add(*["Да", "Нет"])
-        await message.answer("Сделать пост первым сообщением?", reply_markup=keyboard)
-        await EditPosts.wait_for_first.set()
+        keyboard.add("Не прикреплять ссылку к посту.")
+        await message.answer("Прикрепите ссылку к посту.\nПоддерживаются только протоколы HTTP(S) и tg://", reply_markup=keyboard)
+        await EditPosts.wait_for_link.set()
         return
 
     post_data = await state.get_data()
@@ -241,6 +248,53 @@ async def save_post_docs(message: types.Message, state: FSMContext):
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Не загружать документ")
         await message.answer("Загрузите документ для поста", reply_markup=keyboard)
+
+
+async def save_post_link(message: types.Message, state: FSMContext):
+    if message.text and message.text.strip().lower() == "Не прикреплять ссылку к посту.".lower():
+        post_data = await state.get_data()
+
+        if "post_link" not in post_data.keys():
+            await state.update_data(post_link="")
+
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add(*["Да", "Нет"])
+            await message.answer("Сделать пост первым сообщением?", reply_markup=keyboard)
+            await EditPosts.wait_for_first.set()
+
+        return
+
+    if message.text and message.text.strip().lower() != "":
+        if message.text.split("//")[0].lower() in ["https:", "tg:"]:
+
+            await state.update_data(post_link=message.text.strip())
+
+            await message.answer("Введите название ссылки.", reply_markup=types.ReplyKeyboardRemove())
+            await EditPosts.wait_for_label_link.set()
+            return
+
+    keyboard = types.ReplyKeyboardMarkup()
+    keyboard.add("Не прикреплять ссылку к посту.")
+    await message.answer("Прикрепите ссылку к посту\nПоддерживаются только протоколы HTTP(S) и tg://", reply_markup=keyboard)
+    await EditPosts.wait_for_link.set()
+    return
+
+
+async def save_post_label_link(message: types.Message, state: FSMContext):
+    if message.text:
+        if message.text.strip() == "":
+            await message.answer("Введите название ссылки.", reply_markup=types.ReplyKeyboardRemove())
+            await EditPosts.wait_for_label_link.set()
+            return
+        else:
+            await state.update_data(label_link=message.text.strip())
+
+            await message.answer("Ссылка успешно добавлена!")
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add(*["Да", "Нет"])
+            await message.answer("Сделать пост первым сообщением?", reply_markup=keyboard)
+            await EditPosts.wait_for_first.set()
+            return
 
 
 async def save_post(message: types.Message, state: FSMContext):
@@ -265,6 +319,8 @@ async def save_post(message: types.Message, state: FSMContext):
     post = Posts(
         data["post_name"],
         data["post_text"],
+        data["post_link"],
+        data["label_link"],
         f_p
     )
     db_sess.add(post)
@@ -311,4 +367,6 @@ def register_handlers_edit_posts(dp: Dispatcher):
     dp.register_message_handler(save_post_text , IDFilter(user_id=get_admins()), state=EditPosts.wait_for_text)
     dp.register_message_handler(save_post_photo , IDFilter(user_id=get_admins()), content_types=["photo", "text"], state=EditPosts.wait_for_photo)
     dp.register_message_handler(save_post_docs , IDFilter(user_id=get_admins()), content_types=["document", "text"], state=EditPosts.wait_for_docs)
+    dp.register_message_handler(save_post_link , IDFilter(user_id=get_admins()), content_types=["text"], state=EditPosts.wait_for_link)
+    dp.register_message_handler(save_post_label_link , IDFilter(user_id=get_admins()), content_types=["text"], state=EditPosts.wait_for_label_link)
     dp.register_message_handler(save_post , IDFilter(user_id=get_admins()), state=EditPosts.wait_for_first)
