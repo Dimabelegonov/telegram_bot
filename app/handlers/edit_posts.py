@@ -146,6 +146,8 @@ async def view_post(message: types.Message, state: FSMContext):
 
         atts = [x.att_telegram_id for x in post.attachments]
 
+        keyboard = types.ReplyKeyboardRemove()
+
         if post.post_link != "":
             keyboard = types.InlineKeyboardMarkup(row_width=1)
             button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
@@ -256,6 +258,7 @@ async def save_post_link(message: types.Message, state: FSMContext):
 
         if "post_link" not in post_data.keys():
             await state.update_data(post_link="")
+            await state.update_data(label_link="")
 
             keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
             keyboard.add(*["Да", "Нет"])
