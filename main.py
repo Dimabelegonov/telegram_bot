@@ -1,5 +1,9 @@
 import asyncio
 import logging
+import aioschedule
+
+from openpyxl import load_workbook
+from datetime import datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
@@ -13,6 +17,29 @@ from app.handlers.mailing import register_handlers_mailing
 
 from data.db import db_session
 from data.db.models import Users
+
+
+async def save_subscribers():
+    fn = r"data/files/subscribers.xlsx"
+    wb = load_workbook(fn)
+    ws = wb["Sheet1"]
+
+    db_sess = db_session.create_session()
+    subs = len(db_sess.query(Users).all())
+
+    row = (datetime.now(), subs)
+    ws.append(row)
+
+    wb.save(fn)
+    wb.close()
+    db_sess.close()
+
+
+async def subscribers_scheduler():
+    aioschedule.every().day.at("14:43").do(save_subscribers)
+    while True:
+        await aioschedule.run_pending()
+        await asyncio.sleep(1)
 
 
 async def set_commands(bot: Bot):
@@ -31,6 +58,8 @@ async def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
     )
     logger.info("Starting bot!")
+
+    asyncio.create_task(subscribers_scheduler())
 
     # Объявление и инициализация объекта диспечера
     dp = Dispatcher(bot, storage=MemoryStorage())
@@ -71,5 +100,4 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    loop.run_until_complete()
     loop.close()

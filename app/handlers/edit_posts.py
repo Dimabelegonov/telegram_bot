@@ -1,11 +1,13 @@
 from aiogram.dispatcher.filters.builtin import IDFilter
+from sqlalchemy.sql.expression import false
+from data import db
 from data.db import db_session
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher.filters import Text
 
-from data.db.models import Posts, Attachments
+from data.db.models import Posts, Attachments, Users
 from app.__get_admins import get_admins
 
 
@@ -90,7 +92,6 @@ async def delete_post(message: types.Message, state: FSMContext):
         posts.sort(key=lambda x: x.post_id)
         if len(posts) == 1:
             await message.answer("Вы не можете удалить последний пост.\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
-            db_sess.close()
             return
         else:
             post = posts[len(posts) - int(number)]
@@ -309,14 +310,7 @@ async def save_post(message: types.Message, state: FSMContext):
     # Добавление поста
     if f_p and db_sess.query(Posts).filter(Posts.first_post == True).all():
         f_post = db_sess.query(Posts).filter(Posts.first_post == True).all()[0]
-        db_sess.delete(f_post)
-        db_sess.commit()
-        new_post = Posts(
-            f_post.post_name,
-            f_post.post_text,
-            False
-        )
-        db_sess.add(new_post)
+        f_post.first_post = False
         db_sess.commit()
 
     post = Posts(
@@ -353,14 +347,25 @@ async def save_post(message: types.Message, state: FSMContext):
 
 
 async def get_manual(message: types.Message, state: FSMContext):
-    manual = open("data/images/manual.png", "rb")
+    manual = open("data/files/manual.png", "rb")
     await message.answer_photo(manual, reply_markup=types.ReplyKeyboardRemove())
     await message.answer("Для перехода к началу используйте команду /admin")
+
+
+async def get_subscribers(message: types.Message, state: FSMContext):
+    subs = open("data/files/subscribers.xlsx", "rb")
+    await message.answer_document(subs, reply_markup=types.ReplyKeyboardRemove())
+    db_sess = db_session.create_session()
+    subs = len(db_sess.query(Users).all())
+    await message.answer(f"Сейчас на бота подписано {subs} человек")
+    await message.answer("Для перехода к началу используйте команду /admin")
+    db_sess.close()
 
 
 def register_handlers_edit_posts(dp: Dispatcher):
     dp.register_message_handler(start_edit, IDFilter(user_id=get_admins()), Text(equals="Редактировать сообщения"), state="*")
     dp.register_message_handler(get_manual, IDFilter(user_id=get_admins()), Text(equals="Получить инструкцию"), state="*")
+    dp.register_message_handler(get_subscribers, IDFilter(user_id=get_admins()), Text(equals="Количество подписчиков"), state="*")
     dp.register_message_handler(add_post, IDFilter(user_id=get_admins()), Text(equals="Добавить пост"), state=EditPosts.wait_for_choose_act)
     dp.register_message_handler(choose_delete_post, IDFilter(user_id=get_admins()), Text(equals="Удалить пост"), state=EditPosts.wait_for_choose_act)
     dp.register_message_handler(delete_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_choose_post_delete)

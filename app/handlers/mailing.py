@@ -97,7 +97,6 @@ async def do_mailing(message: types.Message, state: FSMContext):
         if inter > 0:
             await message.answer("Рассылка успешно зарегистрирована\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
             await state.finish()
-
             await asyncio.sleep(inter)
             await send_post(post["post"])
             return
@@ -134,7 +133,7 @@ async def send_post(post: Posts):
             pass
 
     # выбор всех пользователей для отправки
-    users = db_sess.query(Users).all()
+    users = db_sess.query(Users).filter(Users.is_admin == False).all()
     users = [x.telegram_id for x in users]
 
     for user in users:
@@ -142,6 +141,7 @@ async def send_post(post: Posts):
         user_not_block = True
 
         try:
+            keyboard = types.ReplyKeyboardRemove()
             if post.post_link != "":
                 keyboard = types.InlineKeyboardMarkup(row_width=1)
                 button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
@@ -169,6 +169,7 @@ async def send_post(post: Posts):
                         pass
             except Exception:
                 pass
+    db_sess.close()
 
 
 def register_handlers_mailing(dp: Dispatcher, bt: Bot):
