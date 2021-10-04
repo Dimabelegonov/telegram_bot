@@ -36,7 +36,7 @@ async def save_subscribers():
 
 
 async def subscribers_scheduler():
-    aioschedule.every().day.at("14:43").do(save_subscribers)
+    aioschedule.every().day.at("16:30").do(save_subscribers)
     while True:
         await aioschedule.run_pending()
         await asyncio.sleep(1)

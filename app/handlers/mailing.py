@@ -64,7 +64,7 @@ async def choose_post(message: types.Message, state: FSMContext):
 
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Отправить сейчас")
-        await message.answer("Вы можете выбрать дату и время отправки сообщения пользователям\nили отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
+        await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
     else:
         await message.answer("Выберите пост для рассылки")
 
@@ -75,7 +75,7 @@ async def do_mailing(message: types.Message, state: FSMContext):
     if message.text.strip() == "":
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Отправить сейчас")
-        await message.answer("Вы можете выбрать дату и время отправки сообщения пользователям\nили отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
+        await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
         return
 
     if message.text.strip().lower() == "Отправить сейчас".lower():
@@ -105,14 +105,14 @@ async def do_mailing(message: types.Message, state: FSMContext):
             keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
             keyboard.add("Отправить сейчас")
             await message.answer("Неправльный ввод даты или времени")
-            await message.answer("Вы можете выбрать дату и время отправки сообщения пользователям\nили отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
+            await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
             return
 
     except Exception:
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Отправить сейчас")
         await message.answer("Неправльный ввод даты или времени")
-        await message.answer("Вы можете выбрать дату и время отправки сообщения пользователям\nили отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг мм:чч", reply_markup=keyboard)
+        await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг мм:чч", reply_markup=keyboard)
         return
 
 

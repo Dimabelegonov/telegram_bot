@@ -94,8 +94,10 @@ async def delete_post(message: types.Message, state: FSMContext):
             await message.answer("Вы не можете удалить последний пост.\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
             return
         else:
-            post = posts[len(posts) - int(number)]
-            post.first_post = True
+            if posts[int(number) - 1].first_post:
+                post = posts[len(posts) - int(number)]
+                post.first_post = True
+
             db_sess.delete(posts[int(number) - 1])
             db_sess.commit()
 
@@ -145,17 +147,16 @@ async def view_post(message: types.Message, state: FSMContext):
         posts.sort(key=lambda x: x.post_id)
         post = posts[int(number) - 1]
 
-        atts = [x.att_telegram_id for x in post.attachments]
-
         keyboard = types.ReplyKeyboardRemove()
 
-        if post.post_link != "":
+        if post.post_link:
             keyboard = types.InlineKeyboardMarkup(row_width=1)
             button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
             keyboard.add(button)
 
         await message.answer(post.post_text, reply_markup=keyboard)
 
+        atts = [x.att_telegram_id for x in post.attachments]
         for att in atts:
             try:
                 await message.answer_photo(att)
