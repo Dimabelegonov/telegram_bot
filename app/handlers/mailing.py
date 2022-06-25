@@ -123,7 +123,6 @@ async def send_post(post: Posts):
 
     if not post:
         db_sess.close()
-        print("Пост был не отправлен, потому что удален!")
         return
 
     # Уведомление админов об отправке сообщения

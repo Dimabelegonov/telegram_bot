@@ -29,7 +29,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
         if not post:
             db_sess.close()
-            print(1231432423)
             return
 
         user_not_block = True

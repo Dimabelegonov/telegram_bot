@@ -78,6 +78,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    print(1)
     # Парсинг файла конфигурации
     # config = load_config("config/release_config.ini")
     config = load_config("config/bot.ini")
