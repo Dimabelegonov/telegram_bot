@@ -26,6 +26,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
     else:
         # отправка первого сообщения пользователю
         post = db_sess.query(Posts).filter(Posts.first_post == True).first()
+
+        if not post:
+            db_sess.close()
+            print(1231432423)
+            return
+
         user_not_block = True
         try:
             if post.post_link != "":

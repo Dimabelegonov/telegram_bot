@@ -118,6 +118,13 @@ async def do_mailing(message: types.Message, state: FSMContext):
 
 async def send_post(post: Posts):
     db_sess = db_session.create_session()
+    id = post.post_id
+    post = db_sess.query(Posts).filter(Posts.post_id == id).first()
+
+    if not post:
+        db_sess.close()
+        print("Пост был не отправлен, потому что удален!")
+        return
 
     # Уведомление админов об отправке сообщения
     admins = db_sess.query(Users).filter(Users.is_admin == True).all()
