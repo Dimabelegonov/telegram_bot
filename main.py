@@ -65,8 +65,8 @@ async def main():
     dp = Dispatcher(bot, storage=MemoryStorage())
 
     # Регистрация хэндлеров
-    register_handlers_common(dp)
-    register_handlers_edit_posts(dp)
+    register_handlers_common(dp, bot)
+    register_handlers_edit_posts(dp, bot)
     register_handlers_mailing(dp, bot)
 
     # Установка команд бота
@@ -78,7 +78,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    print(1)
     # Парсинг файла конфигурации
     # config = load_config("config/release_config.ini")
     config = load_config("config/bot.ini")

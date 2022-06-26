@@ -7,13 +7,11 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher.filters import Text
 
-from data.db.models import Posts, Attachments, Users
+from data.db.models import Posts, Attachments, Users, Deferred
 from app.__get_admins import get_admins
+from app.sending import do_send
 
 from datetime import datetime
-
-
-bot = None
 
 
 class Mail(StatesGroup):
@@ -64,7 +62,11 @@ async def choose_post(message: types.Message, state: FSMContext):
 
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Отправить сейчас")
-        await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
+        await message.answer(
+            "Вы можете выбрать дату и время отправки сообщения\n"
+            "пользователям или отправить данное сообщение прямо сейчас.\n"
+            "Формат для ввода даты и времени: дд.мм.гггг чч:мм",
+            reply_markup=keyboard)
     else:
         await message.answer("Выберите пост для рассылки")
 
@@ -75,13 +77,18 @@ async def do_mailing(message: types.Message, state: FSMContext):
     if message.text.strip() == "":
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Отправить сейчас")
-        await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
+        await message.answer(
+            "Вы можете выбрать дату и время отправки сообщения\n \
+            пользователям или отправить данное сообщение прямо сейчас.\n \
+            Формат для ввода даты и времени: дд.мм.гггг чч:мм",
+            reply_markup=keyboard)
         return
 
     if message.text.strip().lower() == "Отправить сейчас".lower():
         post = await state.get_data()
         await send_post(post["post"])
-        await message.answer("Рассылка успешно выполнена\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer("Рассылка успешно выполнена\nДля перехода к началу используйте команду /admin",
+                             reply_markup=types.ReplyKeyboardRemove())
         await state.finish()
         return
 
@@ -95,28 +102,44 @@ async def do_mailing(message: types.Message, state: FSMContext):
         post = await state.get_data()
 
         if inter > 0:
-            await message.answer("Рассылка успешно зарегистрирована\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
+            await message.answer("Рассылка успешно зарегистрирована\nДля перехода к началу используйте команду /admin",
+                                 reply_markup=types.ReplyKeyboardRemove())
             await state.finish()
+
+            db_sess = db_session.create_session()
+            dfr = Deferred(post["post"].post_id)
+            db_sess.add(dfr)
+            db_sess.commit()
+            db_sess.close()
+
             await asyncio.sleep(inter)
-            await send_post(post["post"])
+            await send_post(post["post"], True, dfr.dfr_id)
             return
 
         else:
             keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
             keyboard.add("Отправить сейчас")
             await message.answer("Неправльный ввод даты или времени")
-            await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг чч:мм", reply_markup=keyboard)
+            await message.answer(
+                "Вы можете выбрать дату и время отправки сообщения\n \
+                пользователям или отправить данное сообщение прямо сейчас.\n \
+                Формат для ввода даты и времени: дд.мм.гггг чч:мм",
+                reply_markup=keyboard)
             return
 
     except Exception:
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Отправить сейчас")
         await message.answer("Неправльный ввод даты или времени")
-        await message.answer("Вы можете выбрать дату и время отправки сообщения\nпользователям или отправить данное сообщение прямо сейчас.\nФормат для ввода даты и времени: дд.мм.гггг мм:чч", reply_markup=keyboard)
+        await message.answer(
+            "Вы можете выбрать дату и время отправки сообщения\n \
+            пользователям или отправить данное сообщение прямо сейчас.\n \
+            Формат для ввода даты и времени: дд.мм.гггг мм:чч",
+            reply_markup=keyboard)
         return
 
 
-async def send_post(post: Posts):
+async def send_post(post: Posts, is_dfr, dfr_id):
     db_sess = db_session.create_session()
     id = post.post_id
     post = db_sess.query(Posts).filter(Posts.post_id == id).first()
@@ -125,62 +148,63 @@ async def send_post(post: Posts):
         db_sess.close()
         return
 
-    # Уведомление админов об отправке сообщения
-    admins = db_sess.query(Users).filter(Users.is_admin == True).all()
-    admins = [x.telegram_id for x in admins]
+    can = True
 
-    for admin in admins:
-        await asyncio.sleep(0.05)
+    if is_dfr:
+        check = db_sess.query(Deferred).filter(Deferred.dfr_id == dfr_id).first()
+        if not check:
+            can = False
 
-        try:
-            text = "Пост " + post.post_name + " успешно отправлен подписчикам"
-            await bot.send_message(admin, text)
-        except Exception:
-            pass
+    if can:
+        # Уведомление админов об отправке сообщения
+        admins = db_sess.query(Users).filter(Users.is_admin).all()
+        admins = [x.telegram_id for x in admins]
 
-    # выбор всех пользователей для отправки
-    users = db_sess.query(Users).filter(Users.is_admin == False).all()
-    users = [x.telegram_id for x in users]
+        for admin in admins:
+            await asyncio.sleep(0.05)
 
-    for user in users:
-        await asyncio.sleep(0.05)
-        user_not_block = True
-
-        try:
-            keyboard = types.ReplyKeyboardRemove()
-            if post.post_link != "":
-                keyboard = types.InlineKeyboardMarkup(row_width=1)
-                button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
-                keyboard.add(button)
-            await bot.send_message(user, post.post_text, reply_markup=keyboard)
-
-        except Exception:
-            user_not_block = False
-            block_user = db_sess.query(Users).filter(Users.telegram_id == user).one()
-            db_sess.delete(block_user)
-            db_sess.commit()
-
-        if user_not_block:
             try:
-                atts = [x.att_telegram_id for x in post.attachments]
-                for att in atts:
-                    try:
-                        await bot.send_photo(user, att)
-                    except Exception:
-                        pass
-
-                    try:
-                        await bot.send_document(user, att)
-                    except Exception:
-                        pass
+                text = "Пост " + post.post_name + " успешно отправлен подписчикам"
+                await bot.send_message(admin, text)
             except Exception:
                 pass
-    db_sess.close()
+
+        # выбор всех пользователей для отправки
+        users = db_sess.query(Users).filter(Users.is_admin == False).all()
+        users = [x.telegram_id for x in users]
+
+        for user in users:
+            await asyncio.sleep(0.05)
+            user_not_block = True
+
+            try:
+                keyboard = types.ReplyKeyboardRemove()
+                if post.post_link != "":
+                    keyboard = types.InlineKeyboardMarkup(row_width=1)
+                    button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
+                    keyboard.add(button)
+                await bot.send_message(user, post.post_text, reply_markup=keyboard)
+
+            except Exception:
+                user_not_block = False
+                block_user = db_sess.query(Users).filter(Users.telegram_id == user).one()
+                db_sess.delete(block_user)
+                db_sess.commit()
+
+            if user_not_block:
+                await do_send(post, bot, user)
+        db_sess.close()
 
 
 def register_handlers_mailing(dp: Dispatcher, bt: Bot):
     global bot
     bot = bt
-    dp.register_message_handler(start_mailing, IDFilter(user_id=get_admins()), Text(equals="Сделать рассылку"), state="*")
+    dp.register_message_handler(start_mailing, IDFilter(user_id=get_admins()), Text(equals="Сделать рассылку"),
+                                state="*")
     dp.register_message_handler(choose_post, IDFilter(user_id=get_admins()), state=Mail.wait_for_choose_post)
-    dp.register_message_handler(do_mailing, IDFilter(user_id=get_admins()), state=Mail.wait_for_choose_date_for_send_post)
+    dp.register_message_handler(do_mailing, IDFilter(user_id=get_admins()),
+                                state=Mail.wait_for_choose_date_for_send_post)
+
+
+bot = None
+

@@ -16,6 +16,7 @@ class Users(SqlAlchemyBase):
         self.telegram_id = tl_id
         self.is_admin = is_ad
 
+
 class Posts(SqlAlchemyBase):
     __tablename__ = "posts"
 
@@ -25,7 +26,8 @@ class Posts(SqlAlchemyBase):
     post_link = Column(String)
     label_link = Column(String)
     first_post = Column(Boolean)
-    attachments = relationship("Attachments", backref="post", cascade = "all, delete, delete-orphan" )
+    attachments = relationship("Attachments", backref="post", cascade="all, delete, delete-orphan")
+    deferred_ = relationship("Deferred", backref="post", cascade="all, delete, delete-orphan")
 
     def __init__(self, p_name, p_text, p_link, lb_link, f_post) -> SqlAlchemyBase:
         super().__init__()
@@ -34,6 +36,7 @@ class Posts(SqlAlchemyBase):
         self.first_post = f_post
         self.post_link = p_link
         self.label_link = lb_link
+
 
 class Attachments(SqlAlchemyBase):
     __tablename__ = "attachments"
@@ -46,3 +49,15 @@ class Attachments(SqlAlchemyBase):
         super().__init__()
         self.att_telegram_id = file_id
         self.post_id = post
+
+
+class Deferred(SqlAlchemyBase):
+    __tablename__ = "deferred"
+
+    dfr_id = Column(Integer, primary_key=True, autoincrement=True)
+    dfr_post_id = Column(Integer, ForeignKey("posts.post_id"))
+
+    def __init__(self, post_id) -> SqlAlchemyBase:
+        super(Deferred, self).__init__()
+        self.dfr_post_id = post_id
+

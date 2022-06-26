@@ -1,8 +1,6 @@
 from aiogram.dispatcher.filters.builtin import IDFilter
-from sqlalchemy.sql.expression import false
-from data import db
 from data.db import db_session
-from aiogram import Dispatcher, types
+from aiogram import Dispatcher, types, Bot
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher.filters import Text
@@ -26,7 +24,7 @@ class EditPosts(StatesGroup):
 
 async def start_edit(message: types.Message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(*["Удалить пост", "Добавить пост", "Просмотреть пост"])
+    keyboard.add(*["Удалить пост", "Добавить пост", "Просмотреть или редактировать пост"])
 
     db_sess = db_session.create_session()
     posts = db_sess.query(Posts).all()
@@ -49,7 +47,8 @@ async def start_edit(message: types.Message):
 
 
 async def add_post(message: types.Message, state: FSMContext):
-    await message.answer("Введите название поста (Оно показываться не будет, нужно для навигации)", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("Введите название поста (Оно показываться не будет, нужно для навигации)",
+                         reply_markup=types.ReplyKeyboardRemove())
     await EditPosts.wait_for_name.set()
 
 
@@ -91,7 +90,9 @@ async def delete_post(message: types.Message, state: FSMContext):
         posts = db_sess.query(Posts).all()
         posts.sort(key=lambda x: x.post_id)
         if len(posts) == 1:
-            await message.answer("Вы не можете удалить последний пост.\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
+            await message.answer("Вы не можете удалить последний пост.\n \
+            Для перехода к началу используйте команду /admin",
+                                 reply_markup=types.ReplyKeyboardRemove())
             return
         else:
             if posts[int(number) - 1].first_post:
@@ -101,7 +102,8 @@ async def delete_post(message: types.Message, state: FSMContext):
             db_sess.delete(posts[int(number) - 1])
             db_sess.commit()
 
-        await message.answer("Пост успешно удален\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer("Пост успешно удален\nДля перехода к началу используйте команду /admin",
+                             reply_markup=types.ReplyKeyboardRemove())
     else:
         await message.answer("Выберите пост для удаления")
 
@@ -168,7 +170,8 @@ async def view_post(message: types.Message, state: FSMContext):
             except Exception:
                 pass
 
-        await message.answer("Для перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer("Для перехода к началу используйте команду /admin",
+                             reply_markup=types.ReplyKeyboardRemove())
     else:
         await message.answer("Выберите пост для просмотра")
 
@@ -193,17 +196,20 @@ async def save_post_text(message: types.Message, state: FSMContext):
 
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add("Не загружать фото")
-    await message.answer("Загрузите фото для поста\n(Это обязательно должен быть файл фотографии)", reply_markup=keyboard)
+    await message.answer("Загрузите фото для поста\n(Это обязательно должен быть файл фотографии)",
+                         reply_markup=keyboard)
     await EditPosts.wait_for_photo.set()
 
 
 async def save_post_photo(message: types.Message, state: FSMContext):
-    if message.text and message.text.strip().lower() == "Не загружать фото".lower() or message.text and message.text.strip().lower() == "Не добавлять фото".lower():
+    if message.text and message.text.strip().lower() == "Не загружать фото".lower() or message.text and \
+            message.text.strip().lower() == "Не добавлять фото".lower():
         await EditPosts.wait_for_docs.set()
 
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Не загружать документ")
-        await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)", reply_markup=keyboard)
+        await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)",
+                             reply_markup=keyboard)
         return
 
     post_data = await state.get_data()
@@ -227,10 +233,12 @@ async def save_post_photo(message: types.Message, state: FSMContext):
 
 
 async def save_post_docs(message: types.Message, state: FSMContext):
-    if message.text and message.text.strip().lower() == "Не загружать документ".lower() or message.text and message.text.strip().lower() == "Не добавлять документ".lower():
+    if message.text and message.text.strip().lower() == "Не загружать документ".lower() or message.text and \
+            message.text.strip().lower() == "Не добавлять документ".lower():
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Не прикреплять ссылку к посту.")
-        await message.answer("Прикрепите ссылку к посту.\nПоддерживаются только протоколы HTTP(S) и tg://", reply_markup=keyboard)
+        await message.answer("Прикрепите ссылку к посту.\nПоддерживаются только протоколы HTTP(S) и tg://",
+                             reply_markup=keyboard)
         await EditPosts.wait_for_link.set()
         return
 
@@ -271,7 +279,6 @@ async def save_post_link(message: types.Message, state: FSMContext):
 
     if message.text and message.text.strip().lower() != "":
         if message.text.split("//")[0].lower() in ["https:", "tg:"]:
-
             await state.update_data(post_link=message.text.strip())
 
             await message.answer("Введите название ссылки.", reply_markup=types.ReplyKeyboardRemove())
@@ -280,7 +287,8 @@ async def save_post_link(message: types.Message, state: FSMContext):
 
     keyboard = types.ReplyKeyboardMarkup()
     keyboard.add("Не прикреплять ссылку к посту.")
-    await message.answer("Прикрепите ссылку к посту\nПоддерживаются только протоколы HTTP(S) и tg://", reply_markup=keyboard)
+    await message.answer("Прикрепите ссылку к посту\nПоддерживаются только протоколы HTTP(S) и tg://",
+                         reply_markup=keyboard)
     await EditPosts.wait_for_link.set()
     return
 
@@ -342,7 +350,8 @@ async def save_post(message: types.Message, state: FSMContext):
         pass
 
     await state.finish()
-    await message.answer("Пост успешно добавлен\nДля перехода к началу используйте команду /admin", reply_markup=types.ReplyKeyboardRemove())
+    await message.answer("Пост успешно добавлен\nДля перехода к началу используйте команду /admin",
+                         reply_markup=types.ReplyKeyboardRemove())
 
     db_sess.close()
 
@@ -363,19 +372,32 @@ async def get_subscribers(message: types.Message, state: FSMContext):
     db_sess.close()
 
 
-def register_handlers_edit_posts(dp: Dispatcher):
-    dp.register_message_handler(start_edit, IDFilter(user_id=get_admins()), Text(equals="Редактировать сообщения"), state="*")
-    dp.register_message_handler(get_manual, IDFilter(user_id=get_admins()), Text(equals="Получить инструкцию"), state="*")
-    dp.register_message_handler(get_subscribers, IDFilter(user_id=get_admins()), Text(equals="Количество подписчиков"), state="*")
-    dp.register_message_handler(add_post, IDFilter(user_id=get_admins()), Text(equals="Добавить пост"), state=EditPosts.wait_for_choose_act)
-    dp.register_message_handler(choose_delete_post, IDFilter(user_id=get_admins()), Text(equals="Удалить пост"), state=EditPosts.wait_for_choose_act)
-    dp.register_message_handler(delete_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_choose_post_delete)
-    dp.register_message_handler(choose_view_post, IDFilter(user_id=get_admins()), Text(equals="Просмотреть пост"), state=EditPosts.wait_for_choose_act)
+def register_handlers_edit_posts(dp: Dispatcher, bt: Bot):
+    global bot
+    bot = bt
+    dp.register_message_handler(start_edit, IDFilter(user_id=get_admins()), Text(equals="Редактировать сообщения"),
+                                state="*")
+    dp.register_message_handler(get_manual, IDFilter(user_id=get_admins()), Text(equals="Получить инструкцию"),
+                                state="*")
+    dp.register_message_handler(get_subscribers, IDFilter(user_id=get_admins()), Text(equals="Количество подписчиков"),
+                                state="*")
+    dp.register_message_handler(add_post, IDFilter(user_id=get_admins()), Text(equals="Добавить пост"),
+                                state=EditPosts.wait_for_choose_act)
+    dp.register_message_handler(choose_delete_post, IDFilter(user_id=get_admins()), Text(equals="Удалить пост"),
+                                state=EditPosts.wait_for_choose_act)
+    dp.register_message_handler(delete_post, IDFilter(user_id=get_admins()),
+                                state=EditPosts.wait_for_choose_post_delete)
+    dp.register_message_handler(choose_view_post, IDFilter(user_id=get_admins()), Text(equals="Просмотреть пост"),
+                                state=EditPosts.wait_for_choose_act)
     dp.register_message_handler(view_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_choose_post_view)
-    dp.register_message_handler(save_post_name , IDFilter(user_id=get_admins()), state=EditPosts.wait_for_name)
-    dp.register_message_handler(save_post_text , IDFilter(user_id=get_admins()), state=EditPosts.wait_for_text)
-    dp.register_message_handler(save_post_photo , IDFilter(user_id=get_admins()), content_types=["photo", "text"], state=EditPosts.wait_for_photo)
-    dp.register_message_handler(save_post_docs , IDFilter(user_id=get_admins()), content_types=["document", "text"], state=EditPosts.wait_for_docs)
-    dp.register_message_handler(save_post_link , IDFilter(user_id=get_admins()), content_types=["text"], state=EditPosts.wait_for_link)
-    dp.register_message_handler(save_post_label_link , IDFilter(user_id=get_admins()), content_types=["text"], state=EditPosts.wait_for_label_link)
-    dp.register_message_handler(save_post , IDFilter(user_id=get_admins()), state=EditPosts.wait_for_first)
+    dp.register_message_handler(save_post_name, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_name)
+    dp.register_message_handler(save_post_text, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_text)
+    dp.register_message_handler(save_post_photo, IDFilter(user_id=get_admins()), content_types=["photo", "text"],
+                                state=EditPosts.wait_for_photo)
+    dp.register_message_handler(save_post_docs, IDFilter(user_id=get_admins()), content_types=["document", "text"],
+                                state=EditPosts.wait_for_docs)
+    dp.register_message_handler(save_post_link, IDFilter(user_id=get_admins()), content_types=["text"],
+                                state=EditPosts.wait_for_link)
+    dp.register_message_handler(save_post_label_link, IDFilter(user_id=get_admins()), content_types=["text"],
+                                state=EditPosts.wait_for_label_link)
+    dp.register_message_handler(save_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_first)

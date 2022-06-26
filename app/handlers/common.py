@@ -1,11 +1,12 @@
 import asyncio
-from aiogram import Dispatcher, types
+from aiogram import Dispatcher, types, Bot
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import IDFilter
 
 from data.db import db_session
 from data.db.models import Users, Posts
 from app.__get_admins import get_admins
+from app.sending import do_send
 
 
 # Начало взаимодействия с ползователем
@@ -22,22 +23,25 @@ async def cmd_start(message: types.Message, state: FSMContext):
         db_sess.commit()
 
     if str(user.telegram_id) in get_admins():
-        await message.answer("Вы являетесь администратором бота\nДля перехода в админку введите /admin", reply_markup=types.ReplyKeyboardRemove())
+        await bot.send_message(user.telegram_id,
+                               "Вы являетесь администратором бота\nДля перехода в админку введите /admin",
+                               reply_markup=types.ReplyKeyboardRemove())
     else:
         # отправка первого сообщения пользователю
-        post = db_sess.query(Posts).filter(Posts.first_post == True).first()
+        post = db_sess.query(Posts).filter(Posts.first_post).first()
 
         if not post:
             db_sess.close()
             return
 
         user_not_block = True
+        keyboard = types.ReplyKeyboardRemove()
         try:
             if post.post_link != "":
                 keyboard = types.InlineKeyboardMarkup(row_width=1)
                 button = types.InlineKeyboardButton(text=post.label_link, url=post.post_link)
                 keyboard.add(button)
-            await message.answer(post.post_text, reply_markup=keyboard)
+            await bot.send_message(user.telegram_id, post.post_text, reply_markup=keyboard)
 
         except Exception:
             user_not_block = False
@@ -46,25 +50,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
             db_sess.commit()
 
         if user_not_block:
-            try:
-                atts = [x.att_telegram_id for x in post.attachments]
-                for att in atts:
-                    try:
-                        await message.answer_photo(att)
-                    except Exception:
-                        pass
-
-                    try:
-                        await message.answer_document(att)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            await do_send(post, bot, user.telegram_id)
 
     db_sess.close()
 
 
-# Команда толькло для админис тратора
+# Команда толькло для администратора
 async def admin_start(message: types.Message, state: FSMContext):
     # обнуляет текущее состояние бота
     await state.finish()
@@ -78,9 +69,15 @@ async def admin_start(message: types.Message, state: FSMContext):
     ]
 
     keyboard.add(*buttons)
-    await message.answer("Привет, админ, выбери действие!\nДля перехода в начало используйте команду /admin", reply_markup=keyboard)
+    await message.answer("Привет, админ, выбери действие!\nДля перехода в начало используйте команду /admin",
+                         reply_markup=keyboard)
 
 
-def register_handlers_common(dp: Dispatcher):
+def register_handlers_common(dp: Dispatcher, bt: Bot):
+    global bot
+    bot = bt
     dp.register_message_handler(cmd_start, commands="start", state="*")
     dp.register_message_handler(admin_start, IDFilter(user_id=get_admins()), commands="admin", state="*")
+
+
+bot = None
