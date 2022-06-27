@@ -65,7 +65,8 @@ async def admin_start(message: types.Message, state: FSMContext):
         types.KeyboardButton(text="Сделать рассылку", ),
         types.KeyboardButton(text="Редактировать сообщения"),
         types.KeyboardButton(text="Получить инструкцию"),
-        types.KeyboardButton(text="Количество подписчиков")
+        types.KeyboardButton(text="Количество подписчиков"),
+        types.KeyboardButton(text="Посмотреть список отложенных сообщений")
     ]
 
     keyboard.add(*buttons)

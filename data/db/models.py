@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text
+from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.schema import ForeignKey
 from .db_session import SqlAlchemyBase
@@ -56,8 +56,10 @@ class Deferred(SqlAlchemyBase):
 
     dfr_id = Column(Integer, primary_key=True, autoincrement=True)
     dfr_post_id = Column(Integer, ForeignKey("posts.post_id"))
+    dfr_date = Column(DateTime(timezone=True), server_default=func.now())
 
-    def __init__(self, post_id) -> SqlAlchemyBase:
+    def __init__(self, post_id, time) -> SqlAlchemyBase:
         super(Deferred, self).__init__()
         self.dfr_post_id = post_id
+        self.dfr_date = time
 

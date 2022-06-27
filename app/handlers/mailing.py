@@ -1,17 +1,16 @@
 import asyncio
-from aiogram.dispatcher.filters.builtin import IDFilter
-from aiogram.types import reply_keyboard
-from data.db import db_session
+from datetime import datetime
+
 from aiogram import Dispatcher, types, Bot
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher.filters import Text
+from aiogram.dispatcher.filters.builtin import IDFilter
+from aiogram.dispatcher.filters.state import State, StatesGroup
 
-from data.db.models import Posts, Attachments, Users, Deferred
 from app.__get_admins import get_admins
 from app.sending import do_send
-
-from datetime import datetime
+from data.db import db_session
+from data.db.models import Posts, Users, Deferred
 
 
 class Mail(StatesGroup):
@@ -44,6 +43,7 @@ async def start_mailing(message: types.Message, state: FSMContext):
 
 
 async def choose_post(message: types.Message, state: FSMContext):
+    db_sess = db_session.create_session()
     if message.text.strip() == "":
         await message.answer("Выберите пост для рассылки")
         return
@@ -53,7 +53,6 @@ async def choose_post(message: types.Message, state: FSMContext):
         await Mail.wait_for_choose_date_for_send_post.set()
 
         # Получаем пост для рассылки из базы данных
-        db_sess = db_session.create_session()
         posts = db_sess.query(Posts).all()
         posts.sort(key=lambda x: x.post_id)
         post = posts[int(number) - 1]
@@ -107,13 +106,21 @@ async def do_mailing(message: types.Message, state: FSMContext):
             await state.finish()
 
             db_sess = db_session.create_session()
-            dfr = Deferred(post["post"].post_id)
+            dfr = Deferred(post["post"].post_id, date)
             db_sess.add(dfr)
             db_sess.commit()
-            db_sess.close()
+            id = dfr.dfr_id
 
             await asyncio.sleep(inter)
-            await send_post(post["post"], True, dfr.dfr_id)
+
+            check = db_sess.query(Deferred).filter(Deferred.dfr_id == id).first()
+
+            if check:
+                await send_post(post["post"])
+                db_sess.delete(dfr)
+                db_sess.commit()
+
+            db_sess.close()
             return
 
         else:
@@ -121,9 +128,9 @@ async def do_mailing(message: types.Message, state: FSMContext):
             keyboard.add("Отправить сейчас")
             await message.answer("Неправльный ввод даты или времени")
             await message.answer(
-                "Вы можете выбрать дату и время отправки сообщения\n \
-                пользователям или отправить данное сообщение прямо сейчас.\n \
-                Формат для ввода даты и времени: дд.мм.гггг чч:мм",
+                "Вы можете выбрать дату и время отправки сообщения\n"
+                "пользователям или отправить данное сообщение прямо сейчас.\n"
+                "Формат для ввода даты и времени: дд.мм.гггг чч:мм",
                 reply_markup=keyboard)
             return
 
@@ -132,14 +139,14 @@ async def do_mailing(message: types.Message, state: FSMContext):
         keyboard.add("Отправить сейчас")
         await message.answer("Неправльный ввод даты или времени")
         await message.answer(
-            "Вы можете выбрать дату и время отправки сообщения\n \
-            пользователям или отправить данное сообщение прямо сейчас.\n \
-            Формат для ввода даты и времени: дд.мм.гггг мм:чч",
+            "Вы можете выбрать дату и время отправки сообщения\n"
+            "пользователям или отправить данное сообщение прямо сейчас.\n"
+            "Формат для ввода даты и времени: дд.мм.гггг мм:чч",
             reply_markup=keyboard)
         return
 
 
-async def send_post(post: Posts, is_dfr, dfr_id):
+async def send_post(post: Posts):
     db_sess = db_session.create_session()
     id = post.post_id
     post = db_sess.query(Posts).filter(Posts.post_id == id).first()
@@ -149,11 +156,6 @@ async def send_post(post: Posts, is_dfr, dfr_id):
         return
 
     can = True
-
-    if is_dfr:
-        check = db_sess.query(Deferred).filter(Deferred.dfr_id == dfr_id).first()
-        if not check:
-            can = False
 
     if can:
         # Уведомление админов об отправке сообщения
@@ -207,4 +209,3 @@ def register_handlers_mailing(dp: Dispatcher, bt: Bot):
 
 
 bot = None
-

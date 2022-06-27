@@ -77,6 +77,7 @@ async def choose_delete_post(message: types.Message, state: FSMContext):
 
 
 async def delete_post(message: types.Message, state: FSMContext):
+    db_sess = db_session.create_session()
     if message.text.strip() == "":
         await message.answer("Выберите пост для удаления")
         return
@@ -86,7 +87,6 @@ async def delete_post(message: types.Message, state: FSMContext):
         await state.finish()
 
         # Удаление поста
-        db_sess = db_session.create_session()
         posts = db_sess.query(Posts).all()
         posts.sort(key=lambda x: x.post_id)
         if len(posts) == 1:
@@ -317,8 +317,8 @@ async def save_post(message: types.Message, state: FSMContext):
     data = await state.get_data()
 
     # Добавление поста
-    if f_p and db_sess.query(Posts).filter(Posts.first_post == True).all():
-        f_post = db_sess.query(Posts).filter(Posts.first_post == True).all()[0]
+    if f_p and db_sess.query(Posts).filter(Posts.first_post).all():
+        f_post = db_sess.query(Posts).filter(Posts.first_post).all()[0]
         f_post.first_post = False
         db_sess.commit()
 
@@ -356,30 +356,10 @@ async def save_post(message: types.Message, state: FSMContext):
     db_sess.close()
 
 
-async def get_manual(message: types.Message, state: FSMContext):
-    manual = open("data/files/manual.png", "rb")
-    await message.answer_photo(manual, reply_markup=types.ReplyKeyboardRemove())
-    await message.answer("Для перехода к началу используйте команду /admin")
-
-
-async def get_subscribers(message: types.Message, state: FSMContext):
-    subs = open("data/files/subscribers.xlsx", "rb")
-    await message.answer_document(subs, reply_markup=types.ReplyKeyboardRemove())
-    db_sess = db_session.create_session()
-    subs = len(db_sess.query(Users).all())
-    await message.answer(f"Сейчас на бота подписано {subs} человек")
-    await message.answer("Для перехода к началу используйте команду /admin")
-    db_sess.close()
-
-
 def register_handlers_edit_posts(dp: Dispatcher, bt: Bot):
     global bot
     bot = bt
     dp.register_message_handler(start_edit, IDFilter(user_id=get_admins()), Text(equals="Редактировать сообщения"),
-                                state="*")
-    dp.register_message_handler(get_manual, IDFilter(user_id=get_admins()), Text(equals="Получить инструкцию"),
-                                state="*")
-    dp.register_message_handler(get_subscribers, IDFilter(user_id=get_admins()), Text(equals="Количество подписчиков"),
                                 state="*")
     dp.register_message_handler(add_post, IDFilter(user_id=get_admins()), Text(equals="Добавить пост"),
                                 state=EditPosts.wait_for_choose_act)

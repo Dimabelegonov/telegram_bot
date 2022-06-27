@@ -14,6 +14,7 @@ from app.config_reader import load_config
 from app.handlers.common import register_handlers_common
 from app.handlers.edit_posts import register_handlers_edit_posts
 from app.handlers.mailing import register_handlers_mailing
+from app.handlers.other_handlers import register_handlers_optional
 
 from data.db import db_session
 from data.db.models import Users
@@ -68,6 +69,7 @@ async def main():
     register_handlers_common(dp, bot)
     register_handlers_edit_posts(dp, bot)
     register_handlers_mailing(dp, bot)
+    register_handlers_optional(dp, bot)
 
     # Установка команд бота
     await set_commands(bot)
