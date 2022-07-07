@@ -12,13 +12,21 @@ from app.__get_admins import get_admins
 class EditPosts(StatesGroup):
     wait_for_choose_act = State()
     wait_for_choose_post_delete = State()
-    wait_for_choose_post_view = State()
+    wait_for_choose_post_view_or_edit = State()
+    wait_for_start_edit_post = State()
     wait_for_name = State()
+    wait_for_edit_name = State()
     wait_for_text = State()
+    wair_for_edit_text = State()
     wait_for_photo = State()
+    wait_for_edit_photo = State()
     wait_for_docs = State()
+    wait_for_edit_docs = State()
     wait_for_link = State()
+    wait_for_edit_link = State()
     wait_for_label_link = State()
+    wait_for_edit_label_link = State()
+    wait_for_edit_first = State()
     wait_for_first = State()
 
 
@@ -110,12 +118,12 @@ async def delete_post(message: types.Message, state: FSMContext):
     db_sess.close()
 
 
-async def choose_view_post(message: types.Message, state: FSMContext):
+async def choose_view_or_edit_post(message: types.Message, state: FSMContext):
     db_sess = db_session.create_session()
     posts = db_sess.query(Posts).all()
     posts.sort(key=lambda x: x.post_id)
     buttons = []
-    answer_text = "Выберите пост для просмотра\n"
+    answer_text = "Выберите пост для просмотра или редактирования\n"
     for i, post in enumerate(posts):
         buttons.append(f"Пост №{i + 1}")
         if post.first_post:
@@ -126,7 +134,7 @@ async def choose_view_post(message: types.Message, state: FSMContext):
     if len(posts) == 0:
         await message.answer("Нет доступных постов")
     else:
-        await EditPosts.wait_for_choose_post_view.set()
+        await EditPosts.wait_for_choose_post_view_or_edit.set()
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add(*buttons)
         await message.answer(answer_text, reply_markup=keyboard)
@@ -134,17 +142,17 @@ async def choose_view_post(message: types.Message, state: FSMContext):
     db_sess.close()
 
 
-async def view_post(message: types.Message, state: FSMContext):
+async def view_or_edit_post(message: types.Message, state: FSMContext):
+    db_sess = db_session.create_session()
     if message.text.strip() == "":
-        await message.answer("Выберите пост для просмотра")
+        await message.answer("Выберите пост для просмотра или редактирования")
         return
 
     number = list(message.text.strip().split("№"))[-1]
     if number.isdigit():
         await state.finish()
 
-        # Выбор поста для просмотра
-        db_sess = db_session.create_session()
+        # Выбор поста для просмотра или редактирования
         posts = db_sess.query(Posts).all()
         posts.sort(key=lambda x: x.post_id)
         post = posts[int(number) - 1]
@@ -169,13 +177,103 @@ async def view_post(message: types.Message, state: FSMContext):
                 await message.answer_document(att)
             except Exception:
                 pass
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("Редактировать данный пост")
+        await EditPosts.wait_for_start_edit_post.set()
+        await state.update_data(post_id=post.post_id)
+        await message.answer("Для перехода к началу используйте команду /admin\n" +
+                             "Или отредактируйте данный пост.",
+                             reply_markup=keyboard)
 
-        await message.answer("Для перехода к началу используйте команду /admin",
-                             reply_markup=types.ReplyKeyboardRemove())
     else:
-        await message.answer("Выберите пост для просмотра")
+        await message.answer("Выберите пост для просмотра или редактирования")
 
     db_sess.close()
+
+
+async def start_edit_post(message: types.Message, state: FSMContext):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("Не редактировать эту часть поста")
+    await message.answer("Введите название поста (Оно показываться не будет, нужно для навигации)",
+                         reply_markup=keyboard)
+    await EditPosts.wait_for_edit_name.set()
+
+
+async def edit_post_name(message: types.Message, state: FSMContext):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("Не редактировать эту часть поста")
+
+    db_sess = db_session.create_session()
+
+    if message.text.strip() == "":
+        await message.answer("Название не должно являться пустой строкой!", reply_markup=keyboard)
+        return
+    else:
+        if not(message.text.strip() == "Не редактировать эту часть поста"):
+            data = await state.get_data()
+            post_id = data["post_id"]
+            post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
+            post.post_name = message.text.strip()
+            db_sess.commit()
+
+    await message.answer("Введите текст поста:", reply_markup=keyboard)
+    await EditPosts.wair_for_edit_text.set()
+
+    db_sess.close()
+
+
+async def edit_post_text(message: types.Message, state: FSMContext):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("Не редактировать эту часть поста")
+
+    if message.text.strip() == "":
+        await message.answer("Введите текст поста:", reply_markup=keyboard)
+        return
+    else:
+        if not(message.text.strip() == "Не редактировать эту часть поста"):
+            db_sess = db_session.create_session()
+            data = await state.get_data()
+            post_id = data["post_id"]
+            post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
+            post.post_text = message.text.strip()
+            db_sess.commit()
+            db_sess.close()
+
+    await message.answer("Загрузите фото для поста\n(Это обязательно должен быть файл фотографии)",
+                         reply_markup=keyboard)
+    await EditPosts.wait_for_edit_photo.set()
+
+
+async def edit_post_photo(message: types.Message, state: FSMContext):
+    if message.text and message.text.strip().lower() == "Не загружать фото".lower() or message.text and \
+            message.text.strip().lower() == "Не добавлять фото".lower() or \
+            message.text.strip().lower() == "Не редактировать эту часть поста".lower():
+        await EditPosts.wait_for_edit_docs.set()
+
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("Не редактировать эту часть поста")
+        await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)",
+                             reply_markup=keyboard)
+        return
+
+    post_data = await state.get_data()
+
+    if message.photo:
+        if "images" not in post_data.keys():
+            await state.update_data(images=[message.photo[-1].file_id])
+            post_data["images"] = [message.photo[-1].file_id]
+        else:
+            post_data["images"].append(message.photo[-1].file_id)
+            await state.update_data(images=post_data["images"])
+
+    if "images" in post_data.keys():
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("Не добавлять фото")
+        await message.answer("Фото загруженно успешно\nМожете загрузить ещё фото", reply_markup=keyboard)
+    else:
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("Не загружать фото")
+        await message.answer("Загрузите фото для поста", reply_markup=keyboard)
 
 
 async def save_post_name(message: types.Message, state: FSMContext):
@@ -367,9 +465,13 @@ def register_handlers_edit_posts(dp: Dispatcher, bt: Bot):
                                 state=EditPosts.wait_for_choose_act)
     dp.register_message_handler(delete_post, IDFilter(user_id=get_admins()),
                                 state=EditPosts.wait_for_choose_post_delete)
-    dp.register_message_handler(choose_view_post, IDFilter(user_id=get_admins()), Text(equals="Просмотреть пост"),
+    dp.register_message_handler(choose_view_or_edit_post, IDFilter(user_id=get_admins()),
+                                Text(equals="Просмотреть или редактировать пост"),
                                 state=EditPosts.wait_for_choose_act)
-    dp.register_message_handler(view_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_choose_post_view)
+    dp.register_message_handler(view_or_edit_post, IDFilter(user_id=get_admins()),
+                                state=EditPosts.wait_for_choose_post_view_or_edit)
+    dp.register_message_handler(start_edit_post, IDFilter(user_id=get_admins()),
+                                Text(equals="Редактировать данный пост"), state=EditPosts.wait_for_start_edit_post)
     dp.register_message_handler(save_post_name, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_name)
     dp.register_message_handler(save_post_text, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_text)
     dp.register_message_handler(save_post_photo, IDFilter(user_id=get_admins()), content_types=["photo", "text"],
