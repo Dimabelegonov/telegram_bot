@@ -209,7 +209,7 @@ async def edit_post_name(message: types.Message, state: FSMContext):
         await message.answer("Название не должно являться пустой строкой!", reply_markup=keyboard)
         return
     else:
-        if not(message.text.strip() == "Не редактировать эту часть поста"):
+        if not (message.text.strip() == "Не редактировать эту часть поста"):
             data = await state.get_data()
             post_id = data["post_id"]
             post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
@@ -230,7 +230,7 @@ async def edit_post_text(message: types.Message, state: FSMContext):
         await message.answer("Введите текст поста:", reply_markup=keyboard)
         return
     else:
-        if not(message.text.strip() == "Не редактировать эту часть поста"):
+        if not (message.text.strip() == "Не редактировать эту часть поста"):
             db_sess = db_session.create_session()
             data = await state.get_data()
             post_id = data["post_id"]
@@ -245,35 +245,150 @@ async def edit_post_text(message: types.Message, state: FSMContext):
 
 
 async def edit_post_photo(message: types.Message, state: FSMContext):
-    if message.text and message.text.strip().lower() == "Не загружать фото".lower() or message.text and \
-            message.text.strip().lower() == "Не добавлять фото".lower() or \
-            message.text.strip().lower() == "Не редактировать эту часть поста".lower():
-        await EditPosts.wait_for_edit_docs.set()
+    if message.text:
+        if message.text.strip().lower() == "Не добавлять фото".lower() or \
+                message.text.strip().lower() == "Не редактировать эту часть поста".lower():
+            await EditPosts.wait_for_edit_docs.set()
 
-        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add("Не редактировать эту часть поста")
-        await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)",
-                             reply_markup=keyboard)
-        return
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add("Не редактировать эту часть поста")
+            await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)",
+                                 reply_markup=keyboard)
+            return
 
     post_data = await state.get_data()
+    post_id = post_data["post_id"]
+    db_sess = db_session.create_session()
 
     if message.photo:
-        if "images" not in post_data.keys():
-            await state.update_data(images=[message.photo[-1].file_id])
-            post_data["images"] = [message.photo[-1].file_id]
-        else:
-            post_data["images"].append(message.photo[-1].file_id)
-            await state.update_data(images=post_data["images"])
-
-    if "images" in post_data.keys():
+        atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+        for att in atts:
+            db_sess.delete(att)
+            db_sess.commit()
+        att = Attachments(message.photo[-1].file_id, post_id)
+        db_sess.add(att)
+        db_sess.commit()
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
         keyboard.add("Не добавлять фото")
         await message.answer("Фото загруженно успешно\nМожете загрузить ещё фото", reply_markup=keyboard)
+
     else:
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add("Не загружать фото")
+        keyboard.add("Не редактировать эту часть поста")
         await message.answer("Загрузите фото для поста", reply_markup=keyboard)
+    db_sess.close()
+
+
+async def edit_post_docs(message: types.Message, state: FSMContext):
+    if message.text:
+        if message.text.strip().lower() == "Не добавлять документ".lower() and \
+                message.text.strip().lower() == "Не редактировать эту часть поста".lower():
+
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add("Не редактировать эту часть поста")
+            await message.answer("Прикрепите ссылку к посту.\nПоддерживаются только протоколы HTTP(S) и tg://",
+                                 reply_markup=keyboard)
+            await EditPosts.wait_for_edit_link.set()
+            return
+
+    post_data = await state.get_data()
+    post_id = post_data["post_id"]
+    db_sess = db_session.create_session()
+
+    if message.document:
+        atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+        for att in atts:
+            db_sess.delete(att)
+            db_sess.commit()
+        att = Attachments(message.document.file_id, post_id)
+        db_sess.add(att)
+        db_sess.commit()
+
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("Не добавлять документ")
+        await message.answer("Документ успешно загружен\nМожете загрузить ещё документы", reply_markup=keyboard)
+    else:
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("Не редактировать эту часть поста")
+        await message.answer("Загрузите документ для поста", reply_markup=keyboard)
+
+
+async def edit_post_link(message: types.Message, state: FSMContext):
+    if message.text:
+        if message.text.strip().lower() == "Не редактировать эту часть поста".lower():
+
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add(*["Да", "Не редактировать эту часть поста"])
+            await message.answer("Сделать пост первым сообщением?", reply_markup=keyboard)
+            await EditPosts.wait_for_edit_first.set()
+
+            return
+
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("Не редактировать эту часть поста")
+
+    if message.text and message.text.strip().lower() != "":
+        if message.text.split("//")[0].lower() in ["https:", "tg:"]:
+            db_sess = db_session.create_session()
+            data = await state.get_data()
+            post_id = data["post_id"]
+            post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
+            post.post_link = message.text.strip()
+            db_sess.commit()
+            db_sess.close()
+
+            await message.answer("Введите название ссылки.", reply_markup=keyboard)
+            await EditPosts.wait_for_edit_label_link.set()
+            return
+
+    await message.answer("Прикрепите ссылку к посту\nПоддерживаются только протоколы HTTP(S) и tg://",
+                         reply_markup=keyboard)
+    await EditPosts.wait_for_edit_link.set()
+    return
+
+
+async def edit_post_label_link(message: types.Message, state: FSMContext):
+    if message.text:
+        if message.text.strip() == "":
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add("Не редактировать эту часть поста")
+            await message.answer("Введите название ссылки.", reply_markup=keyboard)
+            await EditPosts.wait_for_edit_label_link.set()
+            return
+        else:
+            db_sess = db_session.create_session()
+            data = await state.get_data()
+            post_id = data["post_id"]
+            post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
+            post.label_link = message.text.strip()
+            db_sess.commit()
+            db_sess.close()
+
+            await message.answer("Ссылка успешно добавлена!")
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add(*["Да", "Не редактировать эту часть поста"])
+            await message.answer("Сделать пост первым сообщением?", reply_markup=keyboard)
+            await EditPosts.wait_for_edit_first.set()
+            return
+
+
+async def edit_first(message: types.Message, state: FSMContext):
+    if message.text.strip().lower() == "Да".lower():
+        db_sess = db_session.create_session()
+        data = await state.get_data()
+        post_id = data["post_id"]
+
+        f_post = db_sess.query(Posts).filter(Posts.first_post).first()
+        f_post.first_post = False
+        db_sess.commit()
+
+        post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
+        post.first_post = True
+        db_sess.commit()
+        db_sess.close()
+
+    await state.finish()
+    await message.answer("")
 
 
 async def save_post_name(message: types.Message, state: FSMContext):
