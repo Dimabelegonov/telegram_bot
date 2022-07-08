@@ -17,7 +17,7 @@ class EditPosts(StatesGroup):
     wait_for_name = State()
     wait_for_edit_name = State()
     wait_for_text = State()
-    wair_for_edit_text = State()
+    wait_for_edit_text = State()
     wait_for_photo = State()
     wait_for_edit_photo = State()
     wait_for_docs = State()
@@ -217,7 +217,7 @@ async def edit_post_name(message: types.Message, state: FSMContext):
             db_sess.commit()
 
     await message.answer("Введите текст поста:", reply_markup=keyboard)
-    await EditPosts.wair_for_edit_text.set()
+    await EditPosts.wait_for_edit_text.set()
 
     db_sess.close()
 
@@ -242,6 +242,7 @@ async def edit_post_text(message: types.Message, state: FSMContext):
     await message.answer("Загрузите фото для поста\n(Это обязательно должен быть файл фотографии)",
                          reply_markup=keyboard)
     await EditPosts.wait_for_edit_photo.set()
+    await state.update_data(new_att=True)
 
 
 async def edit_post_photo(message: types.Message, state: FSMContext):
@@ -261,10 +262,14 @@ async def edit_post_photo(message: types.Message, state: FSMContext):
     db_sess = db_session.create_session()
 
     if message.photo:
-        atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
-        for att in atts:
-            db_sess.delete(att)
-            db_sess.commit()
+        data = await state.get_data()
+        if data["new_att"]:
+            atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+            for att in atts:
+                db_sess.delete(att)
+                db_sess.commit()
+            await state.update_data(new_att=False)
+
         att = Attachments(message.photo[-1].file_id, post_id)
         db_sess.add(att)
         db_sess.commit()
@@ -281,7 +286,7 @@ async def edit_post_photo(message: types.Message, state: FSMContext):
 
 async def edit_post_docs(message: types.Message, state: FSMContext):
     if message.text:
-        if message.text.strip().lower() == "Не добавлять документ".lower() and \
+        if message.text.strip().lower() == "Не добавлять документ".lower() or \
                 message.text.strip().lower() == "Не редактировать эту часть поста".lower():
 
             keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -296,10 +301,14 @@ async def edit_post_docs(message: types.Message, state: FSMContext):
     db_sess = db_session.create_session()
 
     if message.document:
-        atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
-        for att in atts:
-            db_sess.delete(att)
-            db_sess.commit()
+        data = await state.get_data()
+        if data["new_att"]:
+            atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+            for att in atts:
+                db_sess.delete(att)
+                db_sess.commit()
+            await state.update_data(new_att=False)
+
         att = Attachments(message.document.file_id, post_id)
         db_sess.add(att)
         db_sess.commit()
@@ -388,7 +397,8 @@ async def edit_first(message: types.Message, state: FSMContext):
         db_sess.close()
 
     await state.finish()
-    await message.answer("")
+    await message.answer("Пост успешно отредактирован\nДля перехода к началу используйте команду /admin",
+                         reply_markup=types.ReplyKeyboardRemove())
 
 
 async def save_post_name(message: types.Message, state: FSMContext):
@@ -588,13 +598,24 @@ def register_handlers_edit_posts(dp: Dispatcher, bt: Bot):
     dp.register_message_handler(start_edit_post, IDFilter(user_id=get_admins()),
                                 Text(equals="Редактировать данный пост"), state=EditPosts.wait_for_start_edit_post)
     dp.register_message_handler(save_post_name, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_name)
+    dp.register_message_handler(edit_post_name, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_edit_name)
     dp.register_message_handler(save_post_text, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_text)
+    dp.register_message_handler(edit_post_text, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_edit_text)
     dp.register_message_handler(save_post_photo, IDFilter(user_id=get_admins()), content_types=["photo", "text"],
                                 state=EditPosts.wait_for_photo)
+    dp.register_message_handler(edit_post_photo, IDFilter(user_id=get_admins()), content_types=["photo", "text"],
+                                state=EditPosts.wait_for_edit_photo)
     dp.register_message_handler(save_post_docs, IDFilter(user_id=get_admins()), content_types=["document", "text"],
                                 state=EditPosts.wait_for_docs)
+    dp.register_message_handler(edit_post_docs, IDFilter(user_id=get_admins()), content_types=["document", "text"],
+                                state=EditPosts.wait_for_edit_docs)
     dp.register_message_handler(save_post_link, IDFilter(user_id=get_admins()), content_types=["text"],
                                 state=EditPosts.wait_for_link)
+    dp.register_message_handler(edit_post_link, IDFilter(user_id=get_admins()), content_types=["text"],
+                                state=EditPosts.wait_for_edit_link)
     dp.register_message_handler(save_post_label_link, IDFilter(user_id=get_admins()), content_types=["text"],
                                 state=EditPosts.wait_for_label_link)
+    dp.register_message_handler(edit_post_label_link, IDFilter(user_id=get_admins()), content_types=["text"],
+                                state=EditPosts.wait_for_edit_label_link)
     dp.register_message_handler(save_post, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_first)
+    dp.register_message_handler(edit_first, IDFilter(user_id=get_admins()), state=EditPosts.wait_for_edit_first)
