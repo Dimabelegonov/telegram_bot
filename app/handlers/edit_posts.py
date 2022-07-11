@@ -239,38 +239,46 @@ async def edit_post_text(message: types.Message, state: FSMContext):
             db_sess.commit()
             db_sess.close()
 
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(*["Не редактировать эту часть поста", "Удалить все фотографии"])
     await message.answer("Загрузите фото для поста\n(Это обязательно должен быть файл фотографии)",
                          reply_markup=keyboard)
     await EditPosts.wait_for_edit_photo.set()
-    await state.update_data(new_att=True)
 
 
 async def edit_post_photo(message: types.Message, state: FSMContext):
-    if message.text:
-        if message.text.strip().lower() == "Не добавлять фото".lower() or \
-                message.text.strip().lower() == "Не редактировать эту часть поста".lower():
-            await EditPosts.wait_for_edit_docs.set()
-
-            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            keyboard.add("Не редактировать эту часть поста")
-            await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)",
-                                 reply_markup=keyboard)
-            return
-
     post_data = await state.get_data()
     post_id = post_data["post_id"]
     db_sess = db_session.create_session()
 
+    if message.text:
+        if message.text.strip().lower() == "Не добавлять фото".lower() or \
+                message.text.strip().lower() == "Не редактировать эту часть поста".lower() or \
+                message.text.strip().lower() == "Удалить все фотографии".lower():
+
+            if message.text.strip().lower() == "Удалить все фотографии".lower():
+                atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+                for att in atts:
+                    if att.photo:
+                        db_sess.delete(att)
+                        db_sess.commit()
+
+            await EditPosts.wait_for_edit_docs.set()
+
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add(*["Не редактировать эту часть поста", "Удалить все документы"])
+            await message.answer("Загрузите документ для поста\n(Это обязательно должен быть файл документа)",
+                                 reply_markup=keyboard)
+            return
+
     if message.photo:
-        data = await state.get_data()
-        if data["new_att"]:
-            atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
-            for att in atts:
+        atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+        for att in atts:
+            if att.photo:
                 db_sess.delete(att)
                 db_sess.commit()
-            await state.update_data(new_att=False)
 
-        att = Attachments(message.photo[-1].file_id, post_id)
+        att = Attachments(message.photo[-1].file_id, post_id, True)
         db_sess.add(att)
         db_sess.commit()
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -279,37 +287,43 @@ async def edit_post_photo(message: types.Message, state: FSMContext):
 
     else:
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add("Не редактировать эту часть поста")
+        keyboard.add(*["Не редактировать эту часть поста", "Удалить все фотографии"])
         await message.answer("Загрузите фото для поста", reply_markup=keyboard)
     db_sess.close()
 
 
 async def edit_post_docs(message: types.Message, state: FSMContext):
+    post_data = await state.get_data()
+    post_id = post_data["post_id"]
+    db_sess = db_session.create_session()
+
     if message.text:
         if message.text.strip().lower() == "Не добавлять документ".lower() or \
-                message.text.strip().lower() == "Не редактировать эту часть поста".lower():
+                message.text.strip().lower() == "Не редактировать эту часть поста".lower() or \
+                message.text.strip().lower() == "Удалить все документы".lower():
+
+            if message.text.strip().lower() == "Удалить все документы".lower():
+                atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+                for att in atts:
+                    if not att.photo:
+                        db_sess.delete(att)
+                        db_sess.commit()
 
             keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            keyboard.add("Не редактировать эту часть поста")
+            keyboard.add(*["Не редактировать эту часть поста", "Удалить ссылку"])
             await message.answer("Прикрепите ссылку к посту.\nПоддерживаются только протоколы HTTP(S) и tg://",
                                  reply_markup=keyboard)
             await EditPosts.wait_for_edit_link.set()
             return
 
-    post_data = await state.get_data()
-    post_id = post_data["post_id"]
-    db_sess = db_session.create_session()
-
     if message.document:
-        data = await state.get_data()
-        if data["new_att"]:
-            atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
-            for att in atts:
+        atts = db_sess.query(Attachments).filter(Attachments.post_id == post_id).all()
+        for att in atts:
+            if not att.photo:
                 db_sess.delete(att)
                 db_sess.commit()
-            await state.update_data(new_att=False)
 
-        att = Attachments(message.document.file_id, post_id)
+        att = Attachments(message.document.file_id, post_id, False)
         db_sess.add(att)
         db_sess.commit()
 
@@ -318,13 +332,25 @@ async def edit_post_docs(message: types.Message, state: FSMContext):
         await message.answer("Документ успешно загружен\nМожете загрузить ещё документы", reply_markup=keyboard)
     else:
         keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add("Не редактировать эту часть поста")
+        keyboard.add(*["Не редактировать эту часть поста", "Удалить все фотографии"])
         await message.answer("Загрузите документ для поста", reply_markup=keyboard)
 
 
 async def edit_post_link(message: types.Message, state: FSMContext):
+
     if message.text:
-        if message.text.strip().lower() == "Не редактировать эту часть поста".lower():
+        if message.text.strip().lower() == "Не редактировать эту часть поста".lower() or \
+                message.text.strip().lower() == "Удалить ссылку".lower():
+
+            if message.text.strip().lower() == "Удалить ссылку".lower():
+                db_sess = db_session.create_session()
+                data = await state.get_data()
+                post_id = data["post_id"]
+                post = db_sess.query(Posts).filter(Posts.post_id == post_id).first()
+                post.post_link = ""
+                post.label_link = ""
+                db_sess.commit()
+                db_sess.close()
 
             keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
             keyboard.add(*["Да", "Не редактировать эту часть поста"])
@@ -558,7 +584,7 @@ async def save_post(message: types.Message, state: FSMContext):
     # Добавление вложений
     try:
         for file_id in data["images"]:
-            att = Attachments(file_id, post.post_id)
+            att = Attachments(file_id, post.post_id, True)
             db_sess.add(att)
             db_sess.commit()
     except Exception:
@@ -566,7 +592,7 @@ async def save_post(message: types.Message, state: FSMContext):
 
     try:
         for file_id in data["docs"]:
-            att = Attachments(file_id, post.post_id)
+            att = Attachments(file_id, post.post_id, False)
             db_sess.add(att)
             db_sess.commit()
     except Exception:

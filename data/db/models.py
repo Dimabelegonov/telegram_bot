@@ -44,11 +44,13 @@ class Attachments(SqlAlchemyBase):
     att_id = Column(Integer, primary_key=True, autoincrement=True)
     att_telegram_id = Column(String)
     post_id = Column(Integer, ForeignKey("posts.post_id"))
+    photo = Column(Boolean)
 
-    def __init__(self, file_id, post) -> SqlAlchemyBase:
+    def __init__(self, file_id, post, photo) -> SqlAlchemyBase:
         super().__init__()
         self.att_telegram_id = file_id
         self.post_id = post
+        self.photo = photo
 
 
 class Deferred(SqlAlchemyBase):
